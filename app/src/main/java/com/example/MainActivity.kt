@@ -1851,15 +1851,18 @@ fun QuickAddTransactionDialog(
                         }
 
                         // Source selection dropdown
-                        Box {
+                        Box(modifier = Modifier.fillMaxWidth()) {
                             OutlinedTextField(
                                 value = accounts[selectedSourceIndex].name,
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("From Account (Source)") },
                                 trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
+                                    .matchParentSize()
                                     .clickable { sourceExpanded = true }
                             )
                             DropdownMenu(
@@ -1879,15 +1882,18 @@ fun QuickAddTransactionDialog(
                         }
 
                         // Target selection dropdown
-                        Box {
+                        Box(modifier = Modifier.fillMaxWidth()) {
                             OutlinedTextField(
                                 value = accounts[selectedDestIndex].name,
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("To Account (Destination)") },
                                 trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
+                                    .matchParentSize()
                                     .clickable { destExpanded = true }
                             )
                             DropdownMenu(
@@ -1907,15 +1913,18 @@ fun QuickAddTransactionDialog(
                         }
                     } else {
                         // Account select dropdown launcher
-                        Box {
+                        Box(modifier = Modifier.fillMaxWidth()) {
                             OutlinedTextField(
                                 value = accounts[selectedAccountIndex].name,
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text(if (transactionType == "expense") "Account Source" else "Account Destination") },
                                 trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
+                                    .matchParentSize()
                                     .clickable { accountExpanded = true }
                             )
                             DropdownMenu(
@@ -1935,15 +1944,18 @@ fun QuickAddTransactionDialog(
                         }
 
                         // Category dropdown picker
-                        Box {
+                        Box(modifier = Modifier.fillMaxWidth()) {
                             OutlinedTextField(
                                 value = categories[selectedCategoryIndex],
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("Category") },
                                 trailingIcon = { Icon(Icons.Default.Category, null) },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
+                                    .matchParentSize()
                                     .clickable { categoryExpanded = true }
                             )
                             DropdownMenu(
@@ -2086,15 +2098,18 @@ fun AddAccountDialog(
                 )
 
                 // Select Account Type
-                Box {
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = types[selectedTypeIndex],
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Account Type") },
                         trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .matchParentSize()
                             .clickable { typeExpanded = true }
                     )
                     DropdownMenu(
@@ -2114,15 +2129,18 @@ fun AddAccountDialog(
                 }
 
                 // Select Visual Icon representing account style
-                Box {
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = iconChoices[selectedIconIndex].second,
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Visual Icon Theme") },
                         trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .matchParentSize()
                             .clickable { iconExpanded = true }
                     )
                     DropdownMenu(
@@ -2210,15 +2228,18 @@ fun AddBudgetDialog(
                         style = MaterialTheme.typography.bodySmall
                     )
                 } else {
-                    Box {
+                    Box(modifier = Modifier.fillMaxWidth()) {
                         OutlinedTextField(
                             value = categories[selectedCatIndex],
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("Budget Category") },
                             trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
+                                .matchParentSize()
                                 .clickable { categoryExpanded = true }
                         )
                         DropdownMenu(
@@ -2353,15 +2374,18 @@ fun AddRecurringEventDialog(
                 }
 
                 // Frequency Select
-                Box {
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = frequencies[selectedFreqIndex],
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Repeat Frequency") },
                         trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .matchParentSize()
                             .clickable { freqExpanded = true }
                     )
                     DropdownMenu(
@@ -2381,15 +2405,18 @@ fun AddRecurringEventDialog(
                 }
 
                 // Category selection dropdown
-                Box {
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = categories[selectedCatIndex],
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Category") },
                         trailingIcon = { Icon(Icons.Default.Category, null) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .matchParentSize()
                             .clickable { catExpanded = true }
                     )
                     DropdownMenu(
@@ -2411,15 +2438,18 @@ fun AddRecurringEventDialog(
                 if (accounts.isEmpty()) {
                     Text("⚠️ Add an account source first!", color = CoralRed, style = MaterialTheme.typography.bodySmall)
                 } else {
-                    Box {
+                    Box(modifier = Modifier.fillMaxWidth()) {
                         OutlinedTextField(
                             value = accounts[selectedAccountIndex].name,
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("Debit/Credit Account Link") },
                             trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
+                                .matchParentSize()
                                 .clickable { accExpanded = true }
                         )
                         DropdownMenu(
@@ -2535,15 +2565,18 @@ fun AddGoalDialog(
                 )
 
                 // Select deadline period
-                Box {
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = daysLabels[selectedDaysIndex],
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Savings Period Target") },
                         trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .matchParentSize()
                             .clickable { daysExpanded = true }
                     )
                     DropdownMenu(
