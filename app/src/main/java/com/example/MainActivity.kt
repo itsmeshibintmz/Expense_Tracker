@@ -1,6 +1,7 @@
 package com.example
 
 import android.os.Bundle
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -2727,16 +2728,21 @@ fun SettingsDialog(
     val currencies = listOf("$", "€", "£", "₹", "¥")
     var currencyExpanded by remember { mutableStateOf(false) }
 
-    val themes = listOf("System", "Light", "Dark")
+    val themes = listOf("System", "Light", "Dark", "OLED")
     var themeExpanded by remember { mutableStateOf(false) }
 
-    val accentColors = listOf(
-        "MintGreen" to "Mint Green",
-        "SkyBlue" to "Sky Blue",
-        "LavenderPurple" to "Lavender Purple",
-        "CoralRed" to "Coral Red",
-        "SunnyYellow" to "Sunny Yellow"
-    )
+    val accentColors = remember {
+        buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                add("Dynamic" to "Dynamic (Material You)")
+            }
+            add("MintGreen" to "Mint Green")
+            add("SkyBlue" to "Sky Blue")
+            add("LavenderPurple" to "Lavender Purple")
+            add("CoralRed" to "Coral Red")
+            add("SunnyYellow" to "Sunny Yellow")
+        }
+    }
     var accentExpanded by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -2868,6 +2874,7 @@ fun SettingsDialog(
                                                         "LavenderPurple" -> LavenderPurple
                                                         "CoralRed" -> CoralRed
                                                         "SunnyYellow" -> SunnyYellow
+                                                        "Dynamic" -> MaterialTheme.colorScheme.primary
                                                         else -> MintGreen
                                                     }
                                                 )

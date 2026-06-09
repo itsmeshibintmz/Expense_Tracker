@@ -56,7 +56,7 @@ fun MyApplicationTheme(
 ) {
     val darkTheme = when (themeMode) {
         "Light" -> false
-        "Dark" -> true
+        "Dark", "OLED" -> true
         else -> isSystemInDarkTheme()
     }
 
@@ -68,17 +68,44 @@ fun MyApplicationTheme(
         else -> MintGreen
     }
 
-    val baseScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-    
-    // Swap primary and dynamically adjust container background for accent harmony
-    val colorScheme = baseScheme.copy(
-        primary = accentColor,
-        primaryContainer = if (darkTheme) {
-            accentColor.copy(alpha = 0.2f)
-        } else {
-            accentColor.copy(alpha = 0.15f)
+    val context = LocalContext.current
+    val colorScheme = when {
+        accentColorName == "Dynamic" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val dynamicScheme = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (themeMode == "OLED") {
+                dynamicScheme.copy(
+                    background = Color.Black,
+                    surface = Color.Black,
+                    surfaceVariant = Color(0xFF121212)
+                )
+            } else {
+                dynamicScheme
+            }
         }
-    )
+        else -> {
+            val baseScheme = if (darkTheme) {
+                if (themeMode == "OLED") {
+                    DarkColorScheme.copy(
+                        background = Color.Black,
+                        surface = Color.Black,
+                        surfaceVariant = Color(0xFF121212)
+                    )
+                } else {
+                    DarkColorScheme
+                }
+            } else {
+                LightColorScheme
+            }
+            baseScheme.copy(
+                primary = accentColor,
+                primaryContainer = if (darkTheme) {
+                    accentColor.copy(alpha = 0.2f)
+                } else {
+                    accentColor.copy(alpha = 0.15f)
+                }
+            )
+        }
+    }
 
     MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
 }
