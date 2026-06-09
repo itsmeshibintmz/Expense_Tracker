@@ -67,106 +67,20 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
 
     // --- Transactions & Smart Financial Logic ---
     suspend fun transferFunds(fromAccountId: Int, toAccountId: Int, amount: Double, note: String) {
-        val now = System.currentTimeMillis()
-        val fromAccount = expenseDao.getAccountById(fromAccountId)
-        val toAccount = expenseDao.getAccountById(toAccountId)
-        if (fromAccount != null && toAccount != null) {
-            val noteText = note.ifBlank { "Transfer" }
-            
-            val outTx = Transaction(
-                accountId = fromAccountId,
-                category = "Transfer",
-                amount = amount,
-                isExpense = true,
-                note = "$noteText to ${toAccount.name}",
-                timestampMillis = now
-            )
-            val inTx = Transaction(
-                accountId = toAccountId,
-                category = "Transfer",
-                amount = amount,
-                isExpense = false,
-                note = "$noteText from ${fromAccount.name}",
-                timestampMillis = now
-            )
-            
-            insertTransaction(outTx)
-            insertTransaction(inTx)
-        }
+        expenseDao.transferFundsAndSync(fromAccountId, toAccountId, amount, note)
     }
 
     suspend fun insertTransaction(transaction: Transaction) {
-        expenseDao.insertTransaction(transaction)
-
-        // Update Account Balance
-        val account = expenseDao.getAccountById(transaction.accountId)
-        if (account != null) {
-            val delta = if (transaction.isExpense) -transaction.amount else transaction.amount
-            val updated = account.copy(balance = account.balance + delta)
-            expenseDao.updateAccount(updated)
-        }
-
-        // Update Budget Spent if applicable
-        if (transaction.isExpense) {
-            val budget = expenseDao.getBudgetByCategory(transaction.category)
-            if (budget != null) {
-                val updatedBudget = budget.copy(spentAmount = budget.spentAmount + transaction.amount)
-                expenseDao.updateBudget(updatedBudget)
-            }
-        }
+        expenseDao.insertTransactionAndSync(transaction)
     }
 
     suspend fun deleteTransaction(transaction: Transaction) {
-        expenseDao.deleteTransaction(transaction)
-
-        // Reverse Account Balance adjustment
-        val account = expenseDao.getAccountById(transaction.accountId)
-        if (account != null) {
-            val delta = if (transaction.isExpense) transaction.amount else -transaction.amount
-            val updated = account.copy(balance = account.balance + delta)
-            expenseDao.updateAccount(updated)
-        }
-
-        // Reverse Budget Spent
-        if (transaction.isExpense) {
-            val budget = expenseDao.getBudgetByCategory(transaction.category)
-            if (budget != null) {
-                val newSpent = (budget.spentAmount - transaction.amount).coerceAtLeast(0.0)
-                val updatedBudget = budget.copy(spentAmount = newSpent)
-                expenseDao.updateBudget(updatedBudget)
-            }
-        }
+        expenseDao.deleteTransactionAndSync(transaction)
     }
 
     // Execute recurring event: Adds matching transaction and moves date forward
     suspend fun executeRecurringEvent(event: RecurringEvent) {
-        val now = System.currentTimeMillis()
-        
-        val transaction = Transaction(
-            accountId = event.accountId,
-            category = event.category,
-            amount = event.amount,
-            isExpense = event.isExpense,
-            note = "[Recurring] ${event.title}",
-            timestampMillis = now
-        )
-        insertTransaction(transaction)
-
-        val cal = Calendar.getInstance()
-        cal.timeInMillis = event.nextDateMillis
-        when (event.frequency) {
-            "Daily" -> cal.add(Calendar.DAY_OF_YEAR, 1)
-            "Weekly" -> cal.add(Calendar.WEEK_OF_YEAR, 1)
-            "Monthly" -> cal.add(Calendar.MONTH, 1)
-            "Yearly" -> cal.add(Calendar.YEAR, 1)
-            else -> cal.add(Calendar.MONTH, 1)
-        }
-
-        val updatedEvent = event.copy(
-            lastExecutedMillis = now,
-            nextDateMillis = cal.timeInMillis
-        )
-        expenseDao.updateRecurringEvent(updatedEvent)
+        expenseDao.executeRecurringEventAndSync(event)
     }
 
     // Populate mock data if database is brand new to showcase excellent UX
