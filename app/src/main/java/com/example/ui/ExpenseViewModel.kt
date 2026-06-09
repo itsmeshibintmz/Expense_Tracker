@@ -5,17 +5,40 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.entity.*
 import com.example.data.repository.ExpenseRepository
+import com.example.data.repository.UserPreferences
+import com.example.data.repository.UserPreferencesRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() {
+class ExpenseViewModel(
+    private val repository: ExpenseRepository,
+    private val preferencesRepository: UserPreferencesRepository
+) : ViewModel() {
 
     init {
         viewModelScope.launch {
             repository.prepopulateIfEmpty()
         }
+    }
+
+    val preferences: StateFlow<UserPreferences> = preferencesRepository.preferences
+
+    fun updateUserName(name: String) {
+        preferencesRepository.updateUserName(name)
+    }
+
+    fun updateCurrencySymbol(symbol: String) {
+        preferencesRepository.updateCurrencySymbol(symbol)
+    }
+
+    fun updateThemeMode(mode: String) {
+        preferencesRepository.updateThemeMode(mode)
+    }
+
+    fun updateAccentColor(color: String) {
+        preferencesRepository.updateAccentColor(color)
     }
 
     val accounts: StateFlow<List<Account>> = repository.accounts
@@ -175,12 +198,16 @@ class ExpenseViewModel(private val repository: ExpenseRepository) : ViewModel() 
     }
 }
 
-class ExpenseViewModelFactory(private val repository: ExpenseRepository) : ViewModelProvider.Factory {
+class ExpenseViewModelFactory(
+    private val repository: ExpenseRepository,
+    private val preferencesRepository: UserPreferencesRepository
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ExpenseViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ExpenseViewModel(repository) as T
+            return ExpenseViewModel(repository, preferencesRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
+

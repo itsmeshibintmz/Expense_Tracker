@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -44,6 +46,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.database.AppDatabase
 import com.example.data.entity.*
 import com.example.data.repository.ExpenseRepository
+import com.example.data.repository.UserPreferences
+import com.example.data.repository.UserPreferencesRepository
 import com.example.ui.ExpenseViewModel
 import com.example.ui.ExpenseViewModelFactory
 import com.example.ui.theme.MyApplicationTheme
@@ -62,17 +66,23 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
+            val context = LocalContext.current
+            val database = remember { AppDatabase.getDatabase(context) }
+            val repository = remember { ExpenseRepository(database.expenseDao()) }
+            val prefsRepository = remember { UserPreferencesRepository(context.applicationContext) }
+            val viewModel: ExpenseViewModel = viewModel(
+                factory = ExpenseViewModelFactory(repository, prefsRepository)
+            )
+            val preferences by viewModel.preferences.collectAsStateWithLifecycle()
+
+            MyApplicationTheme(
+                themeMode = preferences.themeMode,
+                accentColorName = preferences.accentColor
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val context = LocalContext.current
-                    val database = remember { AppDatabase.getDatabase(context) }
-                    val repository = remember { ExpenseRepository(database.expenseDao()) }
-                    val viewModel: ExpenseViewModel = viewModel(
-                        factory = ExpenseViewModelFactory(repository)
-                    )
                     ExpenseTrackerApp(viewModel)
                 }
             }
@@ -81,11 +91,11 @@ class MainActivity : ComponentActivity() {
 }
 
 // Helper formats
-fun formatAmount(amount: Double): String {
+fun formatAmount(amount: Double, symbol: String = "$"): String {
     return if (amount >= 0) {
-        String.format("$%,.2f", amount)
+        String.format("%s%,.2f", symbol, amount)
     } else {
-        String.format("-$%,.2f", kotlin.math.abs(amount))
+        String.format("-%s%,.2f", symbol, kotlin.math.abs(amount))
     }
 }
 
@@ -103,6 +113,7 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
     val recurringEvents by viewModel.recurringEvents.collectAsStateWithLifecycle()
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
     val goals by viewModel.goals.collectAsStateWithLifecycle()
+    val preferences by viewModel.preferences.collectAsStateWithLifecycle()
 
     // Dialog trigger states
     var showQuickAddTransaction by remember { mutableStateOf(false) }
@@ -110,6 +121,7 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
     var showAddBudget by remember { mutableStateOf(false) }
     var showAddRecurring by remember { mutableStateOf(false) }
     var showAddGoal by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
 
     // Active bottom-nav tab state
     var activeTab by remember { mutableStateOf("dashboard") } // dashboard, accounts, budgets, goals
@@ -141,6 +153,15 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
                     containerColor = MaterialTheme.colorScheme.surface
                 ),
                 actions = {
+                    IconButton(
+                        onClick = { showSettings = true }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Personalization & Settings",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                     IconButton(
                         onClick = {
                             // Quick simulation button to execute any due events
@@ -236,6 +257,8 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
                         transactions = transactions,
                         goals = goals,
                         viewModel = viewModel,
+                        currencySymbol = preferences.currencySymbol,
+                        userName = preferences.userName,
                         onAddAccountClick = { showAddAccount = true },
                         onAddBudgetClick = { showAddBudget = true },
                         onAddRecurringClick = { showAddRecurring = true },
@@ -244,16 +267,19 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
                     "accounts" -> AccountsTabScreen(
                         accounts = accounts,
                         viewModel = viewModel,
+                        currencySymbol = preferences.currencySymbol,
                         onAddAccountClick = { showAddAccount = true }
                     )
                     "budgets" -> BudgetsTabScreen(
                         budgets = budgets,
                         viewModel = viewModel,
+                        currencySymbol = preferences.currencySymbol,
                         onAddBudgetClick = { showAddBudget = true }
                     )
                     "goals" -> GoalsTabScreen(
                         goals = goals,
                         viewModel = viewModel,
+                        currencySymbol = preferences.currencySymbol,
                         onAddGoalClick = { showAddGoal = true }
                     )
                 }
@@ -266,6 +292,7 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
         QuickAddTransactionDialog(
             accounts = accounts,
             budgets = budgets,
+            currencySymbol = preferences.currencySymbol,
             onDismiss = { showQuickAddTransaction = false },
             onConfirm = { accountId, category, amount, isExpense, note ->
                 viewModel.addTransaction(accountId, category, amount, isExpense, note, System.currentTimeMillis())
@@ -280,6 +307,7 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
 
     if (showAddAccount) {
         AddAccountDialog(
+            currencySymbol = preferences.currencySymbol,
             onDismiss = { showAddAccount = false },
             onConfirm = { name, type, balance, iconName ->
                 viewModel.addAccount(name, type, balance, iconName)
@@ -291,6 +319,7 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
     if (showAddBudget) {
         AddBudgetDialog(
             existingCategories = budgets.map { it.category },
+            currencySymbol = preferences.currencySymbol,
             onDismiss = { showAddBudget = false },
             onConfirm = { category, limit ->
                 viewModel.addBudget(category, limit)
@@ -302,6 +331,7 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
     if (showAddRecurring) {
         AddRecurringEventDialog(
             accounts = accounts,
+            currencySymbol = preferences.currencySymbol,
             onDismiss = { showAddRecurring = false },
             onConfirm = { title, amount, isExpense, category, freq, date, accId ->
                 viewModel.addRecurringEvent(title, amount, isExpense, category, freq, date, accId)
@@ -312,11 +342,23 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
 
     if (showAddGoal) {
         AddGoalDialog(
+            currencySymbol = preferences.currencySymbol,
             onDismiss = { showAddGoal = false },
             onConfirm = { title, target, current, deadline ->
                 viewModel.addGoal(title, target, current, deadline)
                 showAddGoal = false
             }
+        )
+    }
+
+    if (showSettings) {
+        SettingsDialog(
+            preferences = preferences,
+            onDismiss = { showSettings = false },
+            onUpdateName = { viewModel.updateUserName(it) },
+            onUpdateCurrency = { viewModel.updateCurrencySymbol(it) },
+            onUpdateTheme = { viewModel.updateThemeMode(it) },
+            onUpdateAccentColor = { viewModel.updateAccentColor(it) }
         )
     }
 }
@@ -332,6 +374,8 @@ fun DashboardScreen(
     transactions: List<Transaction>,
     goals: List<Goal>,
     viewModel: ExpenseViewModel,
+    currencySymbol: String,
+    userName: String,
     onAddAccountClick: () -> Unit,
     onAddBudgetClick: () -> Unit,
     onAddRecurringClick: () -> Unit,
@@ -351,28 +395,29 @@ fun DashboardScreen(
     ) {
         // 1. Header Hero Widget
         item {
-            NetWorthHeroWidget(netWorth, totalIncomeThisMonth, totalExpenseThisMonth)
+            NetWorthHeroWidget(netWorth, totalIncomeThisMonth, totalExpenseThisMonth, currencySymbol, userName)
         }
 
         // 2. Analytics Donut Widget
         item {
-            AnalyticsDonutWidget(transactions)
+            AnalyticsDonutWidget(transactions, currencySymbol)
         }
 
         // 3. Accounts Widget (Horizontal carousel with scrolling indicator)
         item {
-            AccountsOverviewWidget(accounts, onAddAccountClick)
+            AccountsOverviewWidget(accounts, currencySymbol, onAddAccountClick)
         }
 
         // 4. Budgets Status Widget
         item {
-            BudgetsWidget(budgets, onAddBudgetClick)
+            BudgetsWidget(budgets, currencySymbol, onAddBudgetClick)
         }
 
         // 5. Recurring Schedules Widget
         item {
             RecurringEventsWidget(
                 events = recurringEvents,
+                currencySymbol = currencySymbol,
                 onAddClick = onAddRecurringClick,
                 onExecuteClick = { event -> viewModel.executeRecurringEvent(event) },
                 onDeleteClick = { event -> viewModel.deleteRecurringEvent(event) }
@@ -383,6 +428,7 @@ fun DashboardScreen(
         item {
             GoalsWidget(
                 goals = goals,
+                currencySymbol = currencySymbol,
                 onAddClick = onAddGoalClick,
                 onAddContribution = { goal, amount ->
                     viewModel.updateGoalProgress(goal, (goal.currentAmount + amount).coerceAtMost(goal.targetAmount))
@@ -427,6 +473,7 @@ fun DashboardScreen(
                 TransactionListItem(
                     transaction = transaction,
                     accounts = accounts,
+                    currencySymbol = currencySymbol,
                     onDelete = { viewModel.deleteTransaction(transaction) }
                 )
             }
@@ -440,7 +487,7 @@ fun DashboardScreen(
 
 // 1. Hero Summary Card
 @Composable
-fun NetWorthHeroWidget(netWorth: Double, income: Double, expense: Double) {
+fun NetWorthHeroWidget(netWorth: Double, income: Double, expense: Double, currencySymbol: String, userName: String) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -456,13 +503,20 @@ fun NetWorthHeroWidget(netWorth: Double, income: Double, expense: Double) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
+                text = "Hello, $userName!",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
                 text = "Total Balanced Assets",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = formatAmount(netWorth),
+                text = formatAmount(netWorth, currencySymbol),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -502,7 +556,7 @@ fun NetWorthHeroWidget(netWorth: Double, income: Double, expense: Double) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = formatAmount(income),
+                            text = formatAmount(income, currencySymbol),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
                             color = MintGreen
@@ -546,7 +600,7 @@ fun NetWorthHeroWidget(netWorth: Double, income: Double, expense: Double) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = formatAmount(expense),
+                            text = formatAmount(expense, currencySymbol),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
                             color = CoralRed
@@ -560,7 +614,7 @@ fun NetWorthHeroWidget(netWorth: Double, income: Double, expense: Double) {
 
 // 2. ANALYTICS: Dynamic Category Donut Chart
 @Composable
-fun AnalyticsDonutWidget(transactions: List<Transaction>) {
+fun AnalyticsDonutWidget(transactions: List<Transaction>, currencySymbol: String) {
     val expenses = transactions.filter { it.isExpense && it.category != "Transfer" }
     val totalExpense = expenses.sumOf { it.amount }
 
@@ -650,7 +704,7 @@ fun AnalyticsDonutWidget(transactions: List<Transaction>) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = String.format("$%,.0f", totalExpense),
+                                text = String.format("%s%,.0f", currencySymbol, totalExpense),
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -714,7 +768,7 @@ fun AnalyticsDonutWidget(transactions: List<Transaction>) {
 
 // 3. ACCOUNTS OVERVIEW: Horizontal Swipe carousel
 @Composable
-fun AccountsOverviewWidget(accounts: List<Account>, onAddAccountClick: () -> Unit) {
+fun AccountsOverviewWidget(accounts: List<Account>, currencySymbol: String, onAddAccountClick: () -> Unit) {
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -759,7 +813,7 @@ fun AccountsOverviewWidget(accounts: List<Account>, onAddAccountClick: () -> Uni
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(accounts) { account ->
-                    AccountCardItem(account)
+                    AccountCardItem(account, currencySymbol)
                 }
             }
         }
@@ -767,7 +821,7 @@ fun AccountsOverviewWidget(accounts: List<Account>, onAddAccountClick: () -> Uni
 }
 
 @Composable
-fun AccountCardItem(account: Account) {
+fun AccountCardItem(account: Account, currencySymbol: String) {
     val iconsMap = mapOf(
         "AccountBalance" to Icons.Default.AccountBalance,
         "Wallet" to Icons.Default.Wallet,
@@ -821,7 +875,7 @@ fun AccountCardItem(account: Account) {
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = formatAmount(account.balance),
+                text = formatAmount(account.balance, currencySymbol),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Black,
                 color = if (account.balance >= 0) MintGreen else CoralRed
@@ -832,7 +886,7 @@ fun AccountCardItem(account: Account) {
 
 // 4. BUDGETS WIDGET: Simple overview with warning colors
 @Composable
-fun BudgetsWidget(budgets: List<Budget>, onAddBudgetClick: () -> Unit) {
+fun BudgetsWidget(budgets: List<Budget>, currencySymbol: String, onAddBudgetClick: () -> Unit) {
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -881,7 +935,7 @@ fun BudgetsWidget(budgets: List<Budget>, onAddBudgetClick: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     budgets.take(3).forEach { budget ->
-                        BudgetWidgetRow(budget)
+                        BudgetWidgetRow(budget, currencySymbol)
                     }
                     if (budgets.size > 3) {
                         val remaining = budgets.size - 3
@@ -899,7 +953,7 @@ fun BudgetsWidget(budgets: List<Budget>, onAddBudgetClick: () -> Unit) {
 }
 
 @Composable
-fun BudgetWidgetRow(budget: Budget) {
+fun BudgetWidgetRow(budget: Budget, currencySymbol: String) {
     val fraction = if (budget.limitAmount > 0) (budget.spentAmount / budget.limitAmount).toFloat() else 0f
     val progressColor = when {
         fraction < 0.75f -> MintGreen
@@ -918,7 +972,7 @@ fun BudgetWidgetRow(budget: Budget) {
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "${formatAmount(budget.spentAmount)} / ${formatAmount(budget.limitAmount)}",
+                text = "${formatAmount(budget.spentAmount, currencySymbol)} / ${formatAmount(budget.limitAmount, currencySymbol)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = if (budget.spentAmount > budget.limitAmount) CoralRed else MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -940,6 +994,7 @@ fun BudgetWidgetRow(budget: Budget) {
 @Composable
 fun RecurringEventsWidget(
     events: List<RecurringEvent>,
+    currencySymbol: String,
     onAddClick: () -> Unit,
     onExecuteClick: (RecurringEvent) -> Unit,
     onDeleteClick: (RecurringEvent) -> Unit
@@ -1038,7 +1093,7 @@ fun RecurringEventsWidget(
                                 modifier = Modifier.padding(end = 6.dp)
                             ) {
                                 Text(
-                                    text = (if (event.isExpense) "-" else "+") + formatAmount(event.amount),
+                                    text = (if (event.isExpense) "-" else "+") + formatAmount(event.amount, currencySymbol),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = if (event.isExpense) CoralRed else MintGreen
@@ -1079,6 +1134,7 @@ fun RecurringEventsWidget(
 @Composable
 fun GoalsWidget(
     goals: List<Goal>,
+    currencySymbol: String,
     onAddClick: () -> Unit,
     onAddContribution: (Goal, Double) -> Unit,
     onDeleteClick: (Goal) -> Unit
@@ -1131,6 +1187,7 @@ fun GoalsWidget(
                 items(goals) { goal ->
                     GoalCardItem(
                         goal = goal,
+                        currencySymbol = currencySymbol,
                         onContributeClick = { showContributeGoal = goal }
                     )
                 }
@@ -1142,6 +1199,7 @@ fun GoalsWidget(
         val targetGoal = showContributeGoal!!
         ContributeGoalDialog(
             goalTitle = targetGoal.title,
+            currencySymbol = currencySymbol,
             onDismiss = { showContributeGoal = null },
             onConfirm = { amount ->
                 onAddContribution(targetGoal, amount)
@@ -1152,7 +1210,7 @@ fun GoalsWidget(
 }
 
 @Composable
-fun GoalCardItem(goal: Goal, onContributeClick: () -> Unit) {
+fun GoalCardItem(goal: Goal, currencySymbol: String, onContributeClick: () -> Unit) {
     val pctFraction = if (goal.targetAmount > 0) (goal.currentAmount / goal.targetAmount).toFloat() else 0f
     val percentage = (pctFraction * 100).toInt()
 
@@ -1193,7 +1251,7 @@ fun GoalCardItem(goal: Goal, onContributeClick: () -> Unit) {
             }
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = "Saved ${formatAmount(goal.currentAmount)} of ${formatAmount(goal.targetAmount)}",
+                text = "Saved ${formatAmount(goal.currentAmount, currencySymbol)} of ${formatAmount(goal.targetAmount, currencySymbol)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1236,7 +1294,7 @@ fun GoalCardItem(goal: Goal, onContributeClick: () -> Unit) {
 // COMPONENT: TRANSACTION LIST ITEM
 // ----------------------------------------------------------------------------------
 @Composable
-fun TransactionListItem(transaction: Transaction, accounts: List<Account>, onDelete: () -> Unit) {
+fun TransactionListItem(transaction: Transaction, accounts: List<Account>, currencySymbol: String, onDelete: () -> Unit) {
     val accountName = accounts.find { it.id == transaction.accountId }?.name ?: "Unknown"
 
     val iconsMap = mapOf(
@@ -1300,7 +1358,7 @@ fun TransactionListItem(transaction: Transaction, accounts: List<Account>, onDel
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = (if (transaction.isExpense) "-" else "+") + formatAmount(transaction.amount),
+                    text = (if (transaction.isExpense) "-" else "+") + formatAmount(transaction.amount, currencySymbol),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Black,
                     color = if (transaction.category == "Transfer") SkyBlue
@@ -1331,6 +1389,7 @@ fun TransactionListItem(transaction: Transaction, accounts: List<Account>, onDel
 fun AccountsTabScreen(
     accounts: List<Account>,
     viewModel: ExpenseViewModel,
+    currencySymbol: String,
     onAddAccountClick: () -> Unit
 ) {
     Column(
@@ -1423,7 +1482,7 @@ fun AccountsTabScreen(
                             )
                         }
                         Text(
-                            text = formatAmount(account.balance),
+                            text = formatAmount(account.balance, currencySymbol),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = if (account.balance >= 0) MintGreen else CoralRed,
@@ -1443,6 +1502,7 @@ fun AccountsTabScreen(
 fun BudgetsTabScreen(
     budgets: List<Budget>,
     viewModel: ExpenseViewModel,
+    currencySymbol: String,
     onAddBudgetClick: () -> Unit
 ) {
     Column(
@@ -1520,7 +1580,7 @@ fun BudgetsTabScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "${formatAmount(budget.spentAmount)} spent of ${formatAmount(budget.limitAmount)}",
+                                    text = "${formatAmount(budget.spentAmount, currencySymbol)} spent of ${formatAmount(budget.limitAmount, currencySymbol)}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = if (fraction >= 1f) CoralRed else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1551,6 +1611,7 @@ fun BudgetsTabScreen(
 fun GoalsTabScreen(
     goals: List<Goal>,
     viewModel: ExpenseViewModel,
+    currencySymbol: String,
     onAddGoalClick: () -> Unit
 ) {
     Column(
@@ -1623,7 +1684,7 @@ fun GoalsTabScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "${formatAmount(goal.currentAmount)} / ${formatAmount(goal.targetAmount)} ($percentage%)",
+                                    text = "${formatAmount(goal.currentAmount, currencySymbol)} / ${formatAmount(goal.targetAmount, currencySymbol)} ($percentage%)",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary
                                 )
@@ -1665,6 +1726,7 @@ fun GoalsTabScreen(
 fun QuickAddTransactionDialog(
     accounts: List<Account>,
     budgets: List<Budget>,
+    currencySymbol: String,
     onDismiss: () -> Unit,
     onConfirm: (accountId: Int, category: String, amount: Double, isExpense: Boolean, note: String) -> Unit,
     onTransferConfirm: (fromAccountId: Int, toAccountId: Int, amount: Double, note: String) -> Unit
@@ -1766,7 +1828,7 @@ fun QuickAddTransactionDialog(
                             amountStr = value
                         }
                     },
-                    label = { Text("Amount ($)") },
+                    label = { Text("Amount ($currencySymbol)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
@@ -1806,7 +1868,7 @@ fun QuickAddTransactionDialog(
                             ) {
                                 accounts.forEachIndexed { idx, acc ->
                                     DropdownMenuItem(
-                                        text = { Text("${acc.name} (${formatAmount(acc.balance)})") },
+                                        text = { Text("${acc.name} (${formatAmount(acc.balance, currencySymbol)})") },
                                         onClick = {
                                             selectedSourceIndex = idx
                                             sourceExpanded = false
@@ -1834,7 +1896,7 @@ fun QuickAddTransactionDialog(
                             ) {
                                 accounts.forEachIndexed { idx, acc ->
                                     DropdownMenuItem(
-                                        text = { Text("${acc.name} (${formatAmount(acc.balance)})") },
+                                        text = { Text("${acc.name} (${formatAmount(acc.balance, currencySymbol)})") },
                                         onClick = {
                                             selectedDestIndex = idx
                                             destExpanded = false
@@ -1862,7 +1924,7 @@ fun QuickAddTransactionDialog(
                             ) {
                                 accounts.forEachIndexed { idx, acc ->
                                     DropdownMenuItem(
-                                        text = { Text("${acc.name} (${formatAmount(acc.balance)})") },
+                                        text = { Text("${acc.name} (${formatAmount(acc.balance, currencySymbol)})") },
                                         onClick = {
                                             selectedAccountIndex = idx
                                             accountExpanded = false
@@ -1966,6 +2028,7 @@ fun QuickAddTransactionDialog(
 // Create Account Dialog
 @Composable
 fun AddAccountDialog(
+    currencySymbol: String,
     onDismiss: () -> Unit,
     onConfirm: (name: String, type: String, balance: Double, iconName: String) -> Unit
 ) {
@@ -2016,7 +2079,7 @@ fun AddAccountDialog(
                 OutlinedTextField(
                     value = balanceStr,
                     onValueChange = { balanceStr = it },
-                    label = { Text("Initial Balance ($)") },
+                    label = { Text("Initial Balance ($currencySymbol)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
@@ -2109,6 +2172,7 @@ fun AddAccountDialog(
 @Composable
 fun AddBudgetDialog(
     existingCategories: List<String>,
+    currencySymbol: String,
     onDismiss: () -> Unit,
     onConfirm: (category: String, limitAmount: Double) -> Unit
 ) {
@@ -2177,7 +2241,7 @@ fun AddBudgetDialog(
                 OutlinedTextField(
                     value = limitStr,
                     onValueChange = { limitStr = it },
-                    label = { Text("Monthly Target Limit ($)") },
+                    label = { Text("Monthly Target Limit ($currencySymbol)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
@@ -2210,6 +2274,7 @@ fun AddBudgetDialog(
 @Composable
 fun AddRecurringEventDialog(
     accounts: List<Account>,
+    currencySymbol: String,
     onDismiss: () -> Unit,
     onConfirm: (title: String, amount: Double, isExpense: Boolean, category: String, frequency: String, dateMillis: Long, accountId: Int) -> Unit
 ) {
@@ -2258,7 +2323,7 @@ fun AddRecurringEventDialog(
                 OutlinedTextField(
                     value = amountStr,
                     onValueChange = { amountStr = it },
-                    label = { Text("Transaction Amount ($)") },
+                    label = { Text("Transaction Amount ($currencySymbol)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
@@ -2411,6 +2476,7 @@ fun AddRecurringEventDialog(
 // Add Savings Goal tracking
 @Composable
 fun AddGoalDialog(
+    currencySymbol: String,
     onDismiss: () -> Unit,
     onConfirm: (title: String, targetAmount: Double, currentAmount: Double, deadlineMillis: Long) -> Unit
 ) {
@@ -2453,7 +2519,7 @@ fun AddGoalDialog(
                 OutlinedTextField(
                     value = targetStr,
                     onValueChange = { targetStr = it },
-                    label = { Text("Target Amount ($)") },
+                    label = { Text("Target Amount ($currencySymbol)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
@@ -2462,7 +2528,7 @@ fun AddGoalDialog(
                 OutlinedTextField(
                     value = currentStr,
                     onValueChange = { currentStr = it },
-                    label = { Text("Already Saved Amount ($)") },
+                    label = { Text("Already Saved Amount ($currencySymbol)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
@@ -2530,6 +2596,7 @@ fun AddGoalDialog(
 @Composable
 fun ContributeGoalDialog(
     goalTitle: String,
+    currencySymbol: String,
     onDismiss: () -> Unit,
     onConfirm: (amount: Double) -> Unit
 ) {
@@ -2566,7 +2633,7 @@ fun ContributeGoalDialog(
                 OutlinedTextField(
                     value = amountStr,
                     onValueChange = { amountStr = it },
-                    label = { Text("Transfer Deposit Amount ($)") },
+                    label = { Text("Transfer Deposit Amount ($currencySymbol)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
@@ -2587,6 +2654,204 @@ fun ContributeGoalDialog(
                         }
                     ) {
                         Text("Record Savings")
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------------
+// PERSONALIZATION: SETTINGS DIALOG
+// ----------------------------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsDialog(
+    preferences: UserPreferences,
+    onDismiss: () -> Unit,
+    onUpdateName: (String) -> Unit,
+    onUpdateCurrency: (String) -> Unit,
+    onUpdateTheme: (String) -> Unit,
+    onUpdateAccentColor: (String) -> Unit
+) {
+    var name by remember { mutableStateOf(preferences.userName) }
+
+    val currencies = listOf("$", "€", "£", "₹", "¥")
+    var currencyExpanded by remember { mutableStateOf(false) }
+
+    val themes = listOf("System", "Light", "Dark")
+    var themeExpanded by remember { mutableStateOf(false) }
+
+    val accentColors = listOf(
+        "MintGreen" to "Mint Green",
+        "SkyBlue" to "Sky Blue",
+        "LavenderPurple" to "Lavender Purple",
+        "CoralRed" to "Coral Red",
+        "SunnyYellow" to "Sunny Yellow"
+    )
+    var accentExpanded by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Personalize Settings",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+
+                // Name Input
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Profile Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Currency Dropdown
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = preferences.currencySymbol,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Preferred Currency") },
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { currencyExpanded = true }
+                    )
+                    DropdownMenu(
+                        expanded = currencyExpanded,
+                        onDismissRequest = { currencyExpanded = false }
+                    ) {
+                        currencies.forEach { cur ->
+                            DropdownMenuItem(
+                                text = { Text(cur) },
+                                onClick = {
+                                    onUpdateCurrency(cur)
+                                    currencyExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Theme Dropdown
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = preferences.themeMode,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Theme Mode") },
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { themeExpanded = true }
+                    )
+                    DropdownMenu(
+                        expanded = themeExpanded,
+                        onDismissRequest = { themeExpanded = false }
+                    ) {
+                        themes.forEach { t ->
+                            DropdownMenuItem(
+                                text = { Text(t) },
+                                onClick = {
+                                    onUpdateTheme(t)
+                                    themeExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Accent Color Dropdown
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    val currentLabel = accentColors.find { it.first == preferences.accentColor }?.second ?: "Mint Green"
+                    OutlinedTextField(
+                        value = currentLabel,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Primary Accent Color") },
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { accentExpanded = true }
+                    )
+                    DropdownMenu(
+                        expanded = accentExpanded,
+                        onDismissRequest = { accentExpanded = false }
+                    ) {
+                        accentColors.forEach { (colorKey, colorLabel) ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        // Visual Indicator box
+                                        Box(
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(
+                                                    when (colorKey) {
+                                                        "SkyBlue" -> SkyBlue
+                                                        "LavenderPurple" -> LavenderPurple
+                                                        "CoralRed" -> CoralRed
+                                                        "SunnyYellow" -> SunnyYellow
+                                                        else -> MintGreen
+                                                    }
+                                                )
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(colorLabel)
+                                    }
+                                },
+                                onClick = {
+                                    onUpdateAccentColor(colorKey)
+                                    accentExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Button(
+                        onClick = {
+                            if (name.isNotBlank()) {
+                                onUpdateName(name)
+                            }
+                            onDismiss()
+                        }
+                    ) {
+                        Text("Save & Close")
                     }
                 }
             }

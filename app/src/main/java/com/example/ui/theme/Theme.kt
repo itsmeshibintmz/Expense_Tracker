@@ -50,21 +50,35 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun MyApplicationTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
-  // Disable dynamic color by default to preserve our bespoke branded interface style
-  dynamicColor: Boolean = false,
-  content: @Composable () -> Unit,
+    themeMode: String = "System",
+    accentColorName: String = "MintGreen",
+    content: @Composable () -> Unit,
 ) {
-  val colorScheme =
-    when {
-      dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-        val context = LocalContext.current
-        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-      }
-
-      darkTheme -> DarkColorScheme
-      else -> LightColorScheme
+    val darkTheme = when (themeMode) {
+        "Light" -> false
+        "Dark" -> true
+        else -> isSystemInDarkTheme()
     }
 
-  MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+    val accentColor = when (accentColorName) {
+        "SkyBlue" -> SkyBlue
+        "LavenderPurple" -> LavenderPurple
+        "CoralRed" -> CoralRed
+        "SunnyYellow" -> SunnyYellow
+        else -> MintGreen
+    }
+
+    val baseScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    
+    // Swap primary and dynamically adjust container background for accent harmony
+    val colorScheme = baseScheme.copy(
+        primary = accentColor,
+        primaryContainer = if (darkTheme) {
+            accentColor.copy(alpha = 0.2f)
+        } else {
+            accentColor.copy(alpha = 0.15f)
+        }
+    )
+
+    MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
 }
