@@ -1,0 +1,22 @@
+# Gradle files
+.gradle/
+build/
+
+# IDE files
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Local configuration files (contains local SDK path)
+local.properties
+
+# Secrets (DO NOT COMMIT)
+.env
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log

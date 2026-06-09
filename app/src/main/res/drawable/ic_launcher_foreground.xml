@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Background glow for the coin -->
+    <path
+        android:pathData="M54,54 m-24,0 a24,24 0 1,1 48,0 a24,24 0 1,1 -48,0"
+        android:fillColor="#15386B20" />
+
+    <!-- Upward rising trend line -->
+    <path
+        android:pathData="M24,78 L44,58 L60,68 L84,36"
+        android:strokeWidth="5"
+        android:strokeColor="#5C93B4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+    
+    <!-- Trend arrow point -->
+    <path
+        android:pathData="M72,36 H84 V48"
+        android:strokeWidth="5"
+        android:strokeColor="#5C93B4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+
+    <!-- Center active gold/green coin representing asset accumulation -->
+    <path
+        android:pathData="M54,54 m-19,0 a19,19 0 1,1 38,0 a19,19 0 1,1 -38,0"
+        android:fillColor="#386B20" />
+
+    <!-- Outer rim of the coin -->
+    <path
+        android:pathData="M54,54 m-16,0 a16,16 0 1,1 32,0 a16,16 0 1,1 -32,0"
+        android:strokeWidth="1.5"
+        android:strokeColor="#1A1C18" />
+
+    <!-- Dollar sign in the center of the coin -->
+    <path
+        android:pathData="M54,44 L54,64"
+        android:strokeColor="#1A1C18"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round" />
+        
+    <path
+        android:pathData="M58,49 C58,46 50,46 50,51 C50,56 58,55 58,59 C58,63 50,62 50,59"
+        android:strokeColor="#1A1C18"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

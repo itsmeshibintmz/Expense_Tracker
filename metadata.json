@@ -1,0 +1,6 @@
+{
+  "name": "Expense Tracker",
+  "description": "An elegant, feature-rich Expense Tracker application utilizing Material 3 design, helping you manage accounts, budgets, recurring transactions, analytics, and savings goals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
