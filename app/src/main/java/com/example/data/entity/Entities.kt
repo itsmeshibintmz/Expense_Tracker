@@ -37,6 +37,7 @@ data class RecurringEvent(
 data class Transaction(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val accountId: Int,
+    val title: String,
     val category: String,
     val amount: Double,
     val isExpense: Boolean,

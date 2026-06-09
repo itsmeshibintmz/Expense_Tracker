@@ -140,6 +140,7 @@ class ExpenseViewModel(
 
     fun addTransaction(
         accountId: Int,
+        title: String,
         category: String,
         amount: Double,
         isExpense: Boolean,
@@ -150,6 +151,7 @@ class ExpenseViewModel(
             repository.insertTransaction(
                 Transaction(
                     accountId = accountId,
+                    title = title,
                     category = category,
                     amount = amount,
                     isExpense = isExpense,

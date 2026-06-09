@@ -294,8 +294,8 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
             budgets = budgets,
             currencySymbol = preferences.currencySymbol,
             onDismiss = { showQuickAddTransaction = false },
-            onConfirm = { accountId, category, amount, isExpense, note ->
-                viewModel.addTransaction(accountId, category, amount, isExpense, note, System.currentTimeMillis())
+            onConfirm = { accountId, title, category, amount, isExpense, note ->
+                viewModel.addTransaction(accountId, title, category, amount, isExpense, note, System.currentTimeMillis())
                 showQuickAddTransaction = false
             },
             onTransferConfirm = { fromAccountId, toAccountId, amount, note ->
@@ -1340,14 +1340,14 @@ fun TransactionListItem(transaction: Transaction, accounts: List<Account>, curre
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = if (transaction.note.isNotBlank()) transaction.note else transaction.category,
+                text = if (transaction.title.isNotBlank()) transaction.title else transaction.category,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = "$accountName • ${formatDate(transaction.timestampMillis)}",
+                text = "$accountName • ${transaction.category} • ${formatDate(transaction.timestampMillis)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1728,9 +1728,10 @@ fun QuickAddTransactionDialog(
     budgets: List<Budget>,
     currencySymbol: String,
     onDismiss: () -> Unit,
-    onConfirm: (accountId: Int, category: String, amount: Double, isExpense: Boolean, note: String) -> Unit,
+    onConfirm: (accountId: Int, title: String, category: String, amount: Double, isExpense: Boolean, note: String) -> Unit,
     onTransferConfirm: (fromAccountId: Int, toAccountId: Int, amount: Double, note: String) -> Unit
 ) {
+    var title by remember { mutableStateOf("") }
     var amountStr by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var transactionType by remember { mutableStateOf("expense") } // expense, income, transfer
@@ -1817,6 +1818,18 @@ fun QuickAddTransactionDialog(
                         text = { Text("Transfer", fontWeight = FontWeight.Bold) },
                         selectedContentColor = SkyBlue,
                         unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Transaction Name (Title) input
+                if (transactionType != "transfer") {
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Transaction Name") },
+                        singleLine = true,
+                        placeholder = { Text("e.g. Weekly Groceries, Gas") },
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
 
@@ -2009,8 +2022,10 @@ fun QuickAddTransactionDialog(
                                         onTransferConfirm(fromAccId, toAccId, amtValue, note)
                                     }
                                 } else {
+                                    val finalTitle = title.ifBlank { categories[selectedCategoryIndex] }
                                     onConfirm(
                                         accounts[selectedAccountIndex].id,
+                                        finalTitle,
                                         categories[selectedCategoryIndex],
                                         amtValue,
                                         transactionType == "expense",

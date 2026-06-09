@@ -165,6 +165,7 @@ interface ExpenseDao {
             
             val outTx = Transaction(
                 accountId = fromAccountId,
+                title = "Transfer Out",
                 category = "Transfer",
                 amount = amount,
                 isExpense = true,
@@ -173,6 +174,7 @@ interface ExpenseDao {
             )
             val inTx = Transaction(
                 accountId = toAccountId,
+                title = "Transfer In",
                 category = "Transfer",
                 amount = amount,
                 isExpense = false,
@@ -196,6 +198,7 @@ interface ExpenseDao {
         while (currentNextDate <= now) {
             val transaction = Transaction(
                 accountId = event.accountId,
+                title = event.title,
                 category = event.category,
                 amount = event.amount,
                 isExpense = event.isExpense,

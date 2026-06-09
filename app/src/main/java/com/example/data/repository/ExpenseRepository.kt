@@ -106,15 +106,15 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
             expenseDao.insertGoal(Goal(title = "Emergency Fund", targetAmount = 10000.0, currentAmount = 6500.0, deadlineMillis = calendar.timeInMillis))
 
             val now = System.currentTimeMillis()
-            expenseDao.insertTransaction(Transaction(accountId = 1, category = "Food & Groceries", amount = 45.50, isExpense = true, note = "Weekly Grocery", timestampMillis = now - 2 * 3600 * 1000))
-            expenseDao.insertTransaction(Transaction(accountId = 1, category = "Bills & Utilities", amount = 120.00, isExpense = true, note = "Wifi & Electricity", timestampMillis = now - 24 * 3600 * 1000))
-            expenseDao.insertTransaction(Transaction(accountId = 2, category = "Food & Groceries", amount = 12.00, isExpense = true, note = "Coffee shop", timestampMillis = now - 2 * 24 * 3600 * 1000))
-            expenseDao.insertTransaction(Transaction(accountId = 3, category = "Shopping", amount = 85.00, isExpense = true, note = "Winter Jacket", timestampMillis = now - 3 * 24 * 3600 * 1000))
-            expenseDao.insertTransaction(Transaction(accountId = 1, category = "Transport", amount = 35.00, isExpense = true, note = "Gasoline", timestampMillis = now - 4 * 24 * 3600 * 1000))
-            expenseDao.insertTransaction(Transaction(accountId = 1, category = "Entertainment", amount = 15.00, isExpense = true, note = "Movie rental", timestampMillis = now - 5 * 24 * 3600 * 1000))
+            expenseDao.insertTransaction(Transaction(accountId = 1, title = "Weekly Grocery", category = "Food & Groceries", amount = 45.50, isExpense = true, note = "Grocery shopping at market", timestampMillis = now - 2 * 3600 * 1000))
+            expenseDao.insertTransaction(Transaction(accountId = 1, title = "Utility Bills", category = "Bills & Utilities", amount = 120.00, isExpense = true, note = "Wifi & Electricity", timestampMillis = now - 24 * 3600 * 1000))
+            expenseDao.insertTransaction(Transaction(accountId = 2, title = "Starbucks", category = "Food & Groceries", amount = 12.00, isExpense = true, note = "Mocha Latte coffee shop", timestampMillis = now - 2 * 24 * 3600 * 1000))
+            expenseDao.insertTransaction(Transaction(accountId = 3, title = "Winter Coat", category = "Shopping", amount = 85.00, isExpense = true, note = "Winter Jacket purchase", timestampMillis = now - 3 * 24 * 3600 * 1000))
+            expenseDao.insertTransaction(Transaction(accountId = 1, title = "Gas Station", category = "Transport", amount = 35.00, isExpense = true, note = "Gasoline fill up", timestampMillis = now - 4 * 24 * 3600 * 1000))
+            expenseDao.insertTransaction(Transaction(accountId = 1, title = "Netflix Rental", category = "Entertainment", amount = 15.00, isExpense = true, note = "Movie rental online", timestampMillis = now - 5 * 24 * 3600 * 1000))
             
             // Income
-            expenseDao.insertTransaction(Transaction(accountId = 1, category = "Salary", amount = 3200.00, isExpense = false, note = "Bi-weekly Salary", timestampMillis = now - 8 * 24 * 3600 * 1000))
+            expenseDao.insertTransaction(Transaction(accountId = 1, title = "Work Paycheck", category = "Salary", amount = 3200.00, isExpense = false, note = "Bi-weekly Salary deposit", timestampMillis = now - 8 * 24 * 3600 * 1000))
 
             calendar.timeInMillis = System.currentTimeMillis()
             calendar.add(Calendar.DAY_OF_YEAR, 3)
