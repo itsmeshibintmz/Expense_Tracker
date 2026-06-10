@@ -61,6 +61,13 @@ import com.example.ui.theme.SkyBlue
 import com.example.ui.theme.LavenderPurple
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -115,6 +122,9 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
     val goals by viewModel.goals.collectAsStateWithLifecycle()
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
+
+    var showConfetti by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
 
     // Dialog trigger states
     var showQuickAddTransaction by remember { mutableStateOf(false) }
@@ -263,7 +273,17 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
                         onAddAccountClick = { showAddAccount = true },
                         onAddBudgetClick = { showAddBudget = true },
                         onAddRecurringClick = { showAddRecurring = true },
-                        onAddGoalClick = { showAddGoal = true }
+                        onAddGoalClick = { showAddGoal = true },
+                        onAddContribution = { goal, amount ->
+                            val newAmount = (goal.currentAmount + amount).coerceAtMost(goal.targetAmount)
+                            if (goal.currentAmount < goal.targetAmount && newAmount >= goal.targetAmount) {
+                                showConfetti = true
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            } else {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                            viewModel.updateGoalProgress(goal, newAmount)
+                        }
                     )
                     "accounts" -> AccountsTabScreen(
                         accounts = accounts,
@@ -296,10 +316,12 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
             currencySymbol = preferences.currencySymbol,
             onDismiss = { showQuickAddTransaction = false },
             onConfirm = { accountId, title, category, amount, isExpense, note ->
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 viewModel.addTransaction(accountId, title, category, amount, isExpense, note, System.currentTimeMillis())
                 showQuickAddTransaction = false
             },
             onTransferConfirm = { fromAccountId, toAccountId, amount, note ->
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 viewModel.transferFunds(fromAccountId, toAccountId, amount, note)
                 showQuickAddTransaction = false
             }
@@ -311,6 +333,7 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
             currencySymbol = preferences.currencySymbol,
             onDismiss = { showAddAccount = false },
             onConfirm = { name, type, balance, iconName ->
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 viewModel.addAccount(name, type, balance, iconName)
                 showAddAccount = false
             }
@@ -323,6 +346,7 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
             currencySymbol = preferences.currencySymbol,
             onDismiss = { showAddBudget = false },
             onConfirm = { category, limit ->
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 viewModel.addBudget(category, limit)
                 showAddBudget = false
             }
@@ -335,6 +359,7 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
             currencySymbol = preferences.currencySymbol,
             onDismiss = { showAddRecurring = false },
             onConfirm = { title, amount, isExpense, category, freq, date, accId ->
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 viewModel.addRecurringEvent(title, amount, isExpense, category, freq, date, accId)
                 showAddRecurring = false
             }
@@ -346,6 +371,7 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
             currencySymbol = preferences.currencySymbol,
             onDismiss = { showAddGoal = false },
             onConfirm = { title, target, current, deadline ->
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 viewModel.addGoal(title, target, current, deadline)
                 showAddGoal = false
             }
@@ -356,11 +382,27 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
         SettingsDialog(
             preferences = preferences,
             onDismiss = { showSettings = false },
-            onUpdateName = { viewModel.updateUserName(it) },
-            onUpdateCurrency = { viewModel.updateCurrencySymbol(it) },
-            onUpdateTheme = { viewModel.updateThemeMode(it) },
-            onUpdateAccentColor = { viewModel.updateAccentColor(it) }
+            onUpdateName = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                viewModel.updateUserName(it)
+            },
+            onUpdateCurrency = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                viewModel.updateCurrencySymbol(it)
+            },
+            onUpdateTheme = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                viewModel.updateThemeMode(it)
+            },
+            onUpdateAccentColor = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                viewModel.updateAccentColor(it)
+            }
         )
+    }
+
+    if (showConfetti) {
+        ConfettiOverlay(trigger = showConfetti, onFinished = { showConfetti = false })
     }
 }
 
@@ -380,7 +422,8 @@ fun DashboardScreen(
     onAddAccountClick: () -> Unit,
     onAddBudgetClick: () -> Unit,
     onAddRecurringClick: () -> Unit,
-    onAddGoalClick: () -> Unit
+    onAddGoalClick: () -> Unit,
+    onAddContribution: (Goal, Double) -> Unit
 ) {
     // Compute quick dashboard summaries
     val netWorth = accounts.sumOf { it.balance }
@@ -431,9 +474,7 @@ fun DashboardScreen(
                 goals = goals,
                 currencySymbol = currencySymbol,
                 onAddClick = onAddGoalClick,
-                onAddContribution = { goal, amount ->
-                    viewModel.updateGoalProgress(goal, (goal.currentAmount + amount).coerceAtMost(goal.targetAmount))
-                },
+                onAddContribution = onAddContribution,
                 onDeleteClick = { goal -> viewModel.deleteGoal(goal) }
             )
         }
@@ -2908,6 +2949,98 @@ fun SettingsDialog(
                     ) {
                         Text("Save & Close")
                     }
+                }
+            }
+        }
+    }
+}
+
+data class ConfettiParticle(
+    var x: Float,
+    var y: Float,
+    var vx: Float,
+    var vy: Float,
+    val color: Color,
+    val size: Float,
+    var rotation: Float,
+    val rotationSpeed: Float,
+    var alpha: Float = 1f
+)
+
+@Composable
+fun ConfettiOverlay(
+    trigger: Boolean,
+    onFinished: () -> Unit
+) {
+    if (!trigger) return
+
+    val particleList = remember { mutableStateListOf<ConfettiParticle>() }
+    val colors = listOf(
+        Color(0xFF386B20), // Mint Green
+        Color(0xFF00668B), // Sky Blue
+        Color(0xFF7F4D9C), // Lavender Purple
+        Color(0xFFBA1A1A), // Coral Red
+        Color(0xFFE2C000)  // Sunny Yellow
+    )
+    var screenWidth by remember { mutableStateOf(1080f) }
+    var frameTick by remember { mutableStateOf(0) }
+
+    LaunchedEffect(trigger) {
+        if (trigger) {
+            particleList.clear()
+            repeat(150) {
+                particleList.add(
+                    ConfettiParticle(
+                        x = Random.nextFloat() * screenWidth,
+                        y = -50f - Random.nextFloat() * 200f, // stagger initial drops
+                        vx = (Random.nextFloat() - 0.5f) * 12f,
+                        vy = Random.nextFloat() * 12f + 8f,
+                        color = colors.random(),
+                        size = Random.nextFloat() * 16f + 14f,
+                        rotation = Random.nextFloat() * 360f,
+                        rotationSpeed = (Random.nextFloat() - 0.5f) * 15f
+                    )
+                )
+            }
+
+            val startTime = System.currentTimeMillis()
+            while (System.currentTimeMillis() - startTime < 3500) { // Animate for 3.5 seconds
+                withFrameMillis { frameTime ->
+                    val elapsed = System.currentTimeMillis() - startTime
+                    for (particle in particleList) {
+                        particle.x += particle.vx
+                        particle.y += particle.vy
+                        particle.vy += 0.4f // gravity simulation
+                        particle.rotation += particle.rotationSpeed
+                        
+                        // Slowly fade out after 2.5 seconds
+                        if (elapsed > 2500) {
+                            particle.alpha = ((3500f - elapsed) / 1000f).coerceIn(0f, 1f)
+                        }
+                    }
+                    frameTick++
+                }
+            }
+            onFinished()
+        }
+    }
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { coordinates ->
+                screenWidth = coordinates.size.width.toFloat()
+            }
+    ) {
+        val tick = frameTick
+        particleList.forEach { particle ->
+            if (particle.alpha > 0f) {
+                rotate(degrees = particle.rotation, pivot = Offset(particle.x, particle.y)) {
+                    drawRect(
+                        color = particle.color.copy(alpha = particle.alpha),
+                        topLeft = Offset(particle.x - particle.size / 2, particle.y - particle.size / 2),
+                        size = Size(particle.size, particle.size * 0.5f)
+                    )
                 }
             }
         }
