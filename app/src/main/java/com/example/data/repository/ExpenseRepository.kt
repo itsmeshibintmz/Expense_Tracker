@@ -62,7 +62,15 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
     }
 
     suspend fun deleteGoal(goal: Goal) {
-        expenseDao.deleteGoal(goal)
+        expenseDao.deleteGoalAndSync(goal)
+    }
+
+    suspend fun contributeToGoal(goalId: Int, sourceAccountId: Int, amount: Double) {
+        expenseDao.contributeToGoalAndSync(goalId, sourceAccountId, amount)
+    }
+
+    suspend fun insertGoalWithAccount(title: String, targetAmount: Double, currentAmount: Double, deadlineMillis: Long, linkedAccountId: Int, excludeFromTotal: Boolean) {
+        expenseDao.insertGoalAndCreateAccount(title, targetAmount, currentAmount, deadlineMillis, linkedAccountId, excludeFromTotal)
     }
 
     // --- Transactions & Smart Financial Logic ---
@@ -98,12 +106,15 @@ class ExpenseRepository(private val expenseDao: ExpenseDao) {
             expenseDao.insertBudget(Budget(category = "Transport", limitAmount = 200.0, spentAmount = 65.00))
             expenseDao.insertBudget(Budget(category = "Bills & Utilities", limitAmount = 500.0, spentAmount = 350.00))
 
+            val hawaiiAccId = expenseDao.insertAccountAndGetId(Account(name = "Hawaii Vacation Savings", type = "Goal Savings", balance = 1200.00, iconName = "Savings", excludeFromTotal = true))
+            val emergencyAccId = expenseDao.insertAccountAndGetId(Account(name = "Emergency Fund Savings", type = "Goal Savings", balance = 6500.00, iconName = "Savings", excludeFromTotal = true))
+
             val calendar = Calendar.getInstance()
             calendar.add(Calendar.MONTH, 3)
-            expenseDao.insertGoal(Goal(title = "Hawaii Vacation", targetAmount = 3500.0, currentAmount = 1200.0, deadlineMillis = calendar.timeInMillis))
+            expenseDao.insertGoal(Goal(title = "Hawaii Vacation", targetAmount = 3500.0, currentAmount = 1200.0, deadlineMillis = calendar.timeInMillis, linkedAccountId = hawaiiAccId.toInt()))
             calendar.timeInMillis = System.currentTimeMillis()
             calendar.add(Calendar.MONTH, 12)
-            expenseDao.insertGoal(Goal(title = "Emergency Fund", targetAmount = 10000.0, currentAmount = 6500.0, deadlineMillis = calendar.timeInMillis))
+            expenseDao.insertGoal(Goal(title = "Emergency Fund", targetAmount = 10000.0, currentAmount = 6500.0, deadlineMillis = calendar.timeInMillis, linkedAccountId = emergencyAccId.toInt()))
 
             val now = System.currentTimeMillis()
             expenseDao.insertTransaction(Transaction(accountId = 1, title = "Weekly Grocery", category = "Food & Groceries", amount = 45.50, isExpense = true, note = "Grocery shopping at market", timestampMillis = now - 2 * 3600 * 1000))

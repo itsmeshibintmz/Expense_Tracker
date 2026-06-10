@@ -274,7 +274,7 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
                         onAddBudgetClick = { showAddBudget = true },
                         onAddRecurringClick = { showAddRecurring = true },
                         onAddGoalClick = { showAddGoal = true },
-                        onAddContribution = { goal, amount ->
+                        onAddContribution = { goal, accountId, amount ->
                             val newAmount = (goal.currentAmount + amount).coerceAtMost(goal.targetAmount)
                             if (goal.currentAmount < goal.targetAmount && newAmount >= goal.targetAmount) {
                                 showConfetti = true
@@ -282,7 +282,7 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
                             } else {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             }
-                            viewModel.updateGoalProgress(goal, newAmount)
+                            viewModel.contributeToGoal(goal, accountId, amount)
                         }
                     )
                     "accounts" -> AccountsTabScreen(
@@ -299,9 +299,20 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
                     )
                     "goals" -> GoalsTabScreen(
                         goals = goals,
-                        viewModel = viewModel,
+                        accounts = accounts,
                         currencySymbol = preferences.currencySymbol,
-                        onAddGoalClick = { showAddGoal = true }
+                        onAddGoalClick = { showAddGoal = true },
+                        onAddContribution = { goal, accountId, amount ->
+                            val newAmount = (goal.currentAmount + amount).coerceAtMost(goal.targetAmount)
+                            if (goal.currentAmount < goal.targetAmount && newAmount >= goal.targetAmount) {
+                                showConfetti = true
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            } else {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                            viewModel.contributeToGoal(goal, accountId, amount)
+                        },
+                        onDeleteGoal = { goal -> viewModel.deleteGoal(goal) }
                     )
                 }
             }
@@ -332,9 +343,9 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
         AddAccountDialog(
             currencySymbol = preferences.currencySymbol,
             onDismiss = { showAddAccount = false },
-            onConfirm = { name, type, balance, iconName ->
+            onConfirm = { name, type, balance, iconName, excludeFromTotal ->
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                viewModel.addAccount(name, type, balance, iconName)
+                viewModel.addAccount(name, type, balance, iconName, excludeFromTotal)
                 showAddAccount = false
             }
         )
@@ -368,11 +379,12 @@ fun ExpenseTrackerApp(viewModel: ExpenseViewModel) {
 
     if (showAddGoal) {
         AddGoalDialog(
+            accounts = accounts,
             currencySymbol = preferences.currencySymbol,
             onDismiss = { showAddGoal = false },
-            onConfirm = { title, target, current, deadline ->
+            onConfirm = { title, target, current, deadline, linkedAccountId, excludeFromTotal ->
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                viewModel.addGoal(title, target, current, deadline)
+                viewModel.addGoal(title, target, current, deadline, linkedAccountId, excludeFromTotal)
                 showAddGoal = false
             }
         )
@@ -423,10 +435,10 @@ fun DashboardScreen(
     onAddBudgetClick: () -> Unit,
     onAddRecurringClick: () -> Unit,
     onAddGoalClick: () -> Unit,
-    onAddContribution: (Goal, Double) -> Unit
+    onAddContribution: (Goal, Int, Double) -> Unit
 ) {
     // Compute quick dashboard summaries
-    val netWorth = accounts.sumOf { it.balance }
+    val netWorth = accounts.filter { !it.excludeFromTotal }.sumOf { it.balance }
     val totalExpenseThisMonth = transactions.filter { it.isExpense && it.category != "Transfer" }.sumOf { it.amount }
     val totalIncomeThisMonth = transactions.filter { !it.isExpense && it.category != "Transfer" }.sumOf { it.amount }
 
@@ -472,6 +484,7 @@ fun DashboardScreen(
         item {
             GoalsWidget(
                 goals = goals,
+                accounts = accounts,
                 currencySymbol = currencySymbol,
                 onAddClick = onAddGoalClick,
                 onAddContribution = onAddContribution,
@@ -1176,9 +1189,10 @@ fun RecurringEventsWidget(
 @Composable
 fun GoalsWidget(
     goals: List<Goal>,
+    accounts: List<Account>,
     currencySymbol: String,
     onAddClick: () -> Unit,
-    onAddContribution: (Goal, Double) -> Unit,
+    onAddContribution: (Goal, Int, Double) -> Unit,
     onDeleteClick: (Goal) -> Unit
 ) {
     var showContributeGoal: Goal? by remember { mutableStateOf(null) }
@@ -1229,6 +1243,7 @@ fun GoalsWidget(
                 items(goals) { goal ->
                     GoalCardItem(
                         goal = goal,
+                        accounts = accounts,
                         currencySymbol = currencySymbol,
                         onContributeClick = { showContributeGoal = goal }
                     )
@@ -1241,10 +1256,11 @@ fun GoalsWidget(
         val targetGoal = showContributeGoal!!
         ContributeGoalDialog(
             goalTitle = targetGoal.title,
+            accounts = accounts.filter { !it.excludeFromTotal },
             currencySymbol = currencySymbol,
             onDismiss = { showContributeGoal = null },
-            onConfirm = { amount ->
-                onAddContribution(targetGoal, amount)
+            onConfirm = { accountId, amount ->
+                onAddContribution(targetGoal, accountId, amount)
                 showContributeGoal = null
             }
         )
@@ -1252,12 +1268,14 @@ fun GoalsWidget(
 }
 
 @Composable
-fun GoalCardItem(goal: Goal, currencySymbol: String, onContributeClick: () -> Unit) {
+fun GoalCardItem(goal: Goal, accounts: List<Account>, currencySymbol: String, onContributeClick: () -> Unit) {
     val pctFraction = if (goal.targetAmount > 0) (goal.currentAmount / goal.targetAmount).toFloat() else 0f
     val percentage = (pctFraction * 100).toInt()
 
     Card(
-        modifier = Modifier.width(220.dp),
+        modifier = Modifier
+            .width(220.dp)
+            .clickable { onContributeClick() },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp)
     ) {
@@ -1308,6 +1326,17 @@ fun GoalCardItem(goal: Goal, currencySymbol: String, onContributeClick: () -> Un
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
             Spacer(modifier = Modifier.height(12.dp))
+            val linkedAccount = accounts.find { it.id == goal.linkedAccountId }
+            if (linkedAccount != null) {
+                Text(
+                    text = "Linked: ${linkedAccount.name}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1517,11 +1546,30 @@ fun AccountsTabScreen(
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold
                             )
-                            Text(
-                                text = "Type: ${account.type}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "Type: ${account.type}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (account.excludeFromTotal) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.errorContainer,
+                                        shape = RoundedCornerShape(4.dp),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "Excluded",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                         Text(
                             text = formatAmount(account.balance, currencySymbol),
@@ -1652,10 +1700,14 @@ fun BudgetsTabScreen(
 @Composable
 fun GoalsTabScreen(
     goals: List<Goal>,
-    viewModel: ExpenseViewModel,
+    accounts: List<Account>,
     currencySymbol: String,
-    onAddGoalClick: () -> Unit
+    onAddGoalClick: () -> Unit,
+    onAddContribution: (Goal, Int, Double) -> Unit,
+    onDeleteGoal: (Goal) -> Unit
 ) {
+    var showContributeGoal: Goal? by remember { mutableStateOf(null) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1712,6 +1764,7 @@ fun GoalsTabScreen(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
                             .background(MaterialTheme.colorScheme.surface)
+                            .clickable { showContributeGoal = goal }
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1742,20 +1795,48 @@ fun GoalsTabScreen(
                                 trackColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Deadline: ${formatDate(goal.deadlineMillis)}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Deadline: ${formatDate(goal.deadlineMillis)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                val linkedAccount = accounts.find { it.id == goal.linkedAccountId }
+                                if (linkedAccount != null) {
+                                    Text(
+                                        text = "Linked: ${linkedAccount.name}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                            }
                         }
                         Spacer(modifier = Modifier.width(12.dp))
-                        IconButton(onClick = { viewModel.deleteGoal(goal) }) {
+                        IconButton(onClick = { onDeleteGoal(goal) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete Goal", tint = CoralRed)
                         }
                     }
                 }
             }
         }
+    }
+
+    if (showContributeGoal != null) {
+        val targetGoal = showContributeGoal!!
+        ContributeGoalDialog(
+            goalTitle = targetGoal.title,
+            accounts = accounts.filter { !it.excludeFromTotal },
+            currencySymbol = currencySymbol,
+            onDismiss = { showContributeGoal = null },
+            onConfirm = { accountId, amount ->
+                onAddContribution(targetGoal, accountId, amount)
+                showContributeGoal = null
+            }
+        )
     }
 }
 
@@ -2099,7 +2180,7 @@ fun QuickAddTransactionDialog(
 fun AddAccountDialog(
     currencySymbol: String,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, type: String, balance: Double, iconName: String) -> Unit
+    onConfirm: (name: String, type: String, balance: Double, iconName: String, excludeFromTotal: Boolean) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var balanceStr by remember { mutableStateOf("") }
@@ -2116,6 +2197,8 @@ fun AddAccountDialog(
     )
     var selectedIconIndex by remember { mutableStateOf(0) }
     var iconExpanded by remember { mutableStateOf(false) }
+
+    var excludeFromTotal by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -2218,6 +2301,21 @@ fun AddAccountDialog(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Exclude from Total Balance",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Switch(
+                        checked = excludeFromTotal,
+                        onCheckedChange = { excludeFromTotal = it }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) { Text("Cancel") }
@@ -2230,7 +2328,8 @@ fun AddAccountDialog(
                                     name,
                                     types[selectedTypeIndex],
                                     bal,
-                                    iconChoices[selectedIconIndex].first
+                                    iconChoices[selectedIconIndex].first,
+                                    excludeFromTotal
                                 )
                             }
                         }
@@ -2563,9 +2662,10 @@ fun AddRecurringEventDialog(
 // Add Savings Goal tracking
 @Composable
 fun AddGoalDialog(
+    accounts: List<Account>,
     currencySymbol: String,
     onDismiss: () -> Unit,
-    onConfirm: (title: String, targetAmount: Double, currentAmount: Double, deadlineMillis: Long) -> Unit
+    onConfirm: (title: String, targetAmount: Double, currentAmount: Double, deadlineMillis: Long, linkedAccountId: Int, excludeFromTotal: Boolean) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var targetStr by remember { mutableStateOf("") }
@@ -2575,6 +2675,10 @@ fun AddGoalDialog(
     val daysLabels = listOf("1 Month", "3 Months (Short Term)", "6 Months", "1 Year (Long Term)")
     var selectedDaysIndex by remember { mutableStateOf(1) }
     var daysExpanded by remember { mutableStateOf(false) }
+
+    var linkedAccountId by remember { mutableStateOf(-1) }
+    var excludeFromTotal by remember { mutableStateOf(true) }
+    var accountExpanded by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -2652,6 +2756,62 @@ fun AddGoalDialog(
                     }
                 }
 
+                // Select Linked Account
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    val selectedAccountName = if (linkedAccountId == -1) "Create New Savings Account" else accounts.find { it.id == linkedAccountId }?.name ?: "Create New Savings Account"
+                    OutlinedTextField(
+                        value = selectedAccountName,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Link to Account") },
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { accountExpanded = true }
+                    )
+                    DropdownMenu(
+                        expanded = accountExpanded,
+                        onDismissRequest = { accountExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Create New Savings Account") },
+                            onClick = {
+                                linkedAccountId = -1
+                                accountExpanded = false
+                            }
+                        )
+                        accounts.forEach { acc ->
+                            DropdownMenuItem(
+                                text = { Text("${acc.name} (${acc.type})") },
+                                onClick = {
+                                    linkedAccountId = acc.id
+                                    accountExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (linkedAccountId == -1) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Exclude Dedicated Account from Total Balance",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Switch(
+                            checked = excludeFromTotal,
+                            onCheckedChange = { excludeFromTotal = it }
+                        )
+                    }
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -2669,7 +2829,9 @@ fun AddGoalDialog(
                                     title,
                                     target,
                                     cur,
-                                    cal.timeInMillis
+                                    cal.timeInMillis,
+                                    linkedAccountId,
+                                    excludeFromTotal
                                 )
                             }
                         }
@@ -2686,11 +2848,14 @@ fun AddGoalDialog(
 @Composable
 fun ContributeGoalDialog(
     goalTitle: String,
+    accounts: List<Account>,
     currencySymbol: String,
     onDismiss: () -> Unit,
-    onConfirm: (amount: Double) -> Unit
+    onConfirm: (accountId: Int, amount: Double) -> Unit
 ) {
     var amountStr by remember { mutableStateOf("") }
+    var selectedAccountIndex by remember { mutableStateOf(0) }
+    var accountExpanded by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -2720,13 +2885,54 @@ fun ContributeGoalDialog(
                     textAlign = TextAlign.Center
                 )
 
+                // Source Account Selection Dropdown
+                if (accounts.isNotEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = accounts[selectedAccountIndex].name,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Select Source Account") },
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { accountExpanded = true }
+                        )
+                        DropdownMenu(
+                            expanded = accountExpanded,
+                            onDismissRequest = { accountExpanded = false }
+                        ) {
+                            accounts.forEachIndexed { idx, acc ->
+                                DropdownMenuItem(
+                                    text = { Text("${acc.name} (${formatAmount(acc.balance, currencySymbol)})") },
+                                    onClick = {
+                                        selectedAccountIndex = idx
+                                        accountExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "No active source accounts available (non-excluded). Please create a standard asset account first.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
                 OutlinedTextField(
                     value = amountStr,
                     onValueChange = { amountStr = it },
                     label = { Text("Transfer Deposit Amount ($currencySymbol)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = accounts.isNotEmpty()
                 )
 
                 Row(
@@ -2738,10 +2944,11 @@ fun ContributeGoalDialog(
                     Button(
                         onClick = {
                             val amt = amountStr.toDoubleOrNull() ?: 0.0
-                            if (amt > 0) {
-                                onConfirm(amt)
+                            if (amt > 0 && accounts.isNotEmpty()) {
+                                onConfirm(accounts[selectedAccountIndex].id, amt)
                             }
-                        }
+                        },
+                        enabled = accounts.isNotEmpty()
                     ) {
                         Text("Record Savings")
                     }

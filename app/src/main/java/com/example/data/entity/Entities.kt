@@ -9,7 +9,8 @@ data class Account(
     val name: String,
     val type: String, // Checking, Savings, Cash, Credit Card
     val balance: Double,
-    val iconName: String
+    val iconName: String,
+    val excludeFromTotal: Boolean = false
 )
 
 @Entity(tableName = "budgets")
@@ -51,5 +52,6 @@ data class Goal(
     val title: String,
     val targetAmount: Double,
     val currentAmount: Double,
-    val deadlineMillis: Long
+    val deadlineMillis: Long,
+    val linkedAccountId: Int
 )

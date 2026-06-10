@@ -78,9 +78,9 @@ class ExpenseViewModel(
 
     // --- Actions ---
 
-    fun addAccount(name: String, type: String, balance: Double, iconName: String) {
+    fun addAccount(name: String, type: String, balance: Double, iconName: String, excludeFromTotal: Boolean) {
         viewModelScope.launch {
-            repository.insertAccount(Account(name = name, type = type, balance = balance, iconName = iconName))
+            repository.insertAccount(Account(name = name, type = type, balance = balance, iconName = iconName, excludeFromTotal = excludeFromTotal))
         }
     }
 
@@ -174,15 +174,15 @@ class ExpenseViewModel(
         }
     }
 
-    fun addGoal(title: String, targetAmount: Double, currentAmount: Double, deadlineMillis: Long) {
+    fun addGoal(title: String, targetAmount: Double, currentAmount: Double, deadlineMillis: Long, linkedAccountId: Int, excludeFromTotal: Boolean) {
         viewModelScope.launch {
-            repository.insertGoal(
-                Goal(
-                    title = title,
-                    targetAmount = targetAmount,
-                    currentAmount = currentAmount,
-                    deadlineMillis = deadlineMillis
-                )
+            repository.insertGoalWithAccount(
+                title = title,
+                targetAmount = targetAmount,
+                currentAmount = currentAmount,
+                deadlineMillis = deadlineMillis,
+                linkedAccountId = linkedAccountId,
+                excludeFromTotal = excludeFromTotal
             )
         }
     }
@@ -196,6 +196,12 @@ class ExpenseViewModel(
     fun deleteGoal(goal: Goal) {
         viewModelScope.launch {
             repository.deleteGoal(goal)
+        }
+    }
+
+    fun contributeToGoal(goal: Goal, accountId: Int, amount: Double) {
+        viewModelScope.launch {
+            repository.contributeToGoal(goal.id, accountId, amount)
         }
     }
 }
