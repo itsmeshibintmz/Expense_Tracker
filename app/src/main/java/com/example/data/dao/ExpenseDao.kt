@@ -225,4 +225,60 @@ interface ExpenseDao {
         )
         updateRecurringEvent(updatedEvent)
     }
+
+    @Query("SELECT * FROM goals WHERE id = :id")
+    suspend fun getGoalById(id: Int): Goal?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAccountAndGetId(account: Account): Long
+
+    @androidx.room.Transaction
+    suspend fun insertGoalAndCreateAccount(title: String, targetAmount: Double, currentAmount: Double, deadlineMillis: Long, linkedAccountId: Int, excludeFromTotal: Boolean) {
+        var finalAccountId = linkedAccountId
+        if (linkedAccountId == -1) {
+            val newAccount = Account(
+                name = "$title Savings",
+                type = "Goal Savings",
+                balance = currentAmount,
+                iconName = "Savings",
+                excludeFromTotal = excludeFromTotal
+            )
+            val accountId = insertAccountAndGetId(newAccount)
+            finalAccountId = accountId.toInt()
+        }
+        val goal = Goal(
+            title = title,
+            targetAmount = targetAmount,
+            currentAmount = currentAmount,
+            deadlineMillis = deadlineMillis,
+            linkedAccountId = finalAccountId
+        )
+        insertGoal(goal)
+    }
+
+    @androidx.room.Transaction
+    suspend fun contributeToGoalAndSync(goalId: Int, sourceAccountId: Int, amount: Double) {
+        val goal = getGoalById(goalId)
+        if (goal != null) {
+            val newCurrent = (goal.currentAmount + amount).coerceAtMost(goal.targetAmount)
+            updateGoal(goal.copy(currentAmount = newCurrent))
+
+            // Perform transfer from source account to goal's linked account
+            transferFundsAndSync(
+                fromAccountId = sourceAccountId,
+                toAccountId = goal.linkedAccountId,
+                amount = amount,
+                note = "Goal Deposit: ${goal.title}"
+            )
+        }
+    }
+
+    @androidx.room.Transaction
+    suspend fun deleteGoalAndSync(goal: Goal) {
+        deleteGoal(goal)
+        val account = getAccountById(goal.linkedAccountId)
+        if (account != null && account.type == "Goal Savings") {
+            deleteAccount(account)
+        }
+    }
 }
